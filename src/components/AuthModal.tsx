@@ -13,6 +13,7 @@ interface AuthModalProps {
 
 export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isResetPassword, setIsResetPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,18 +23,29 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
     setLoading(true);
 
     try {
-      if (isSignUp) {
+      if (isResetPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/`,
+        });
+        if (error) throw error;
+        toast.success("Password reset email sent! Check your inbox.");
+        setIsResetPassword(false);
+        setEmail("");
+      } else if (isSignUp) {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         toast.success("Account created! You can now upload pictures.");
+        onOpenChange(false);
+        setEmail("");
+        setPassword("");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back!");
+        onOpenChange(false);
+        setEmail("");
+        setPassword("");
       }
-      onOpenChange(false);
-      setEmail("");
-      setPassword("");
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -46,7 +58,7 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl">
-            {isSignUp ? "Create Parent Account" : "Parent Login"}
+            {isResetPassword ? "Reset Password" : isSignUp ? "Create Parent Account" : "Parent Login"}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleAuth} className="space-y-4">
@@ -61,29 +73,55 @@ export const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               className="h-12"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="h-12"
-            />
-          </div>
+          {!isResetPassword && (
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="h-12"
+              />
+            </div>
+          )}
           <Button type="submit" disabled={loading} className="w-full h-12 text-lg">
-            {loading ? "Please wait..." : isSignUp ? "Create Account" : "Login"}
+            {loading ? "Please wait..." : isResetPassword ? "Send Reset Email" : isSignUp ? "Create Account" : "Login"}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="w-full"
-          >
-            {isSignUp ? "Already have an account? Login" : "Need an account? Sign up"}
-          </Button>
+          {!isResetPassword ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="w-full"
+              >
+                {isSignUp ? "Already have an account? Login" : "Need an account? Sign up"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsResetPassword(true)}
+                className="w-full text-sm"
+              >
+                Forgot Password?
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsResetPassword(false);
+                setEmail("");
+              }}
+              className="w-full"
+            >
+              Back to Login
+            </Button>
+          )}
         </form>
       </DialogContent>
     </Dialog>
