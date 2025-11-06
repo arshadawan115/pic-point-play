@@ -11,6 +11,11 @@ interface PictureUploadProps {
   onUploadSuccess: () => void;
 }
 
+// Validation constants
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_NAME_LENGTH = 100;
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
 export const PictureUpload = ({ onUploadSuccess }: PictureUploadProps) => {
   const [uploading, setUploading] = useState(false);
   const [name, setName] = useState("");
@@ -20,6 +25,20 @@ export const PictureUpload = ({ onUploadSuccess }: PictureUploadProps) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      // Validate file size
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        toast.error("File too large (max 5MB)");
+        e.target.value = "";
+        return;
+      }
+
+      // Validate file type
+      if (!ALLOWED_TYPES.includes(selectedFile.type)) {
+        toast.error("Invalid file type. Please upload JPEG, PNG, GIF, or WEBP images only");
+        e.target.value = "";
+        return;
+      }
+
       setFile(selectedFile);
       const reader = new FileReader();
       reader.onloadend = () => setPreview(reader.result as string);
@@ -34,12 +53,34 @@ export const PictureUpload = ({ onUploadSuccess }: PictureUploadProps) => {
       return;
     }
 
+    // Validate name length
+    if (name.length > MAX_NAME_LENGTH) {
+      toast.error(`Name too long (max ${MAX_NAME_LENGTH} characters)`);
+      return;
+    }
+
+    // Double-check file validations
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File too large (max 5MB)");
+      return;
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error("Invalid file type");
+      return;
+    }
+
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const fileExt = file.name.split(".").pop();
+      // Sanitize and validate file extension
+      const fileExt = file.name.split(".").pop()?.toLowerCase();
+      if (!fileExt || !['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
+        throw new Error("Invalid file extension");
+      }
+
       const fileName = `${user.id}/${Math.random()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
@@ -52,9 +93,12 @@ export const PictureUpload = ({ onUploadSuccess }: PictureUploadProps) => {
         .from("pictures")
         .getPublicUrl(fileName);
 
+      // Sanitize name: trim and limit length
+      const sanitizedName = (name || file.name).trim().slice(0, MAX_NAME_LENGTH);
+
       const { error: dbError } = await supabase.from("pictures").insert({
         user_id: user.id,
-        name: name || file.name,
+        name: sanitizedName,
         image_url: publicUrl,
       });
 
